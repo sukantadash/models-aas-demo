@@ -5,7 +5,7 @@
 
 #Step -1 Login to the cluster
 
-oc login -u admin -p zE4iYNKhv6wuZtYv https://api.cluster-hz554.hz554.sandbox500.opentlc.com:6443
+oc login -u admin -p  https://api.cluster-hz554.hz554.sandbox500.opentlc.com:6443
 
 #Step -2 Install openshift AI
 
@@ -86,7 +86,7 @@ curl -X 'POST' \
     'https://vllm-server-vllm-granite.apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com/v1/completions' \
     -H 'accept: application/json' \
     -H 'Content-Type: application/json' \
-    -H 'Authorization: Bearer sha256~vX7AwzqninjzFtRUmfi5psuDVO382HLS4-c2pygyK4o' \
+    -H 'Authorization: Bearer ' \
     -d '{
     "model": "vllm-server",
     "prompt": "San Francisco is a",
@@ -97,10 +97,10 @@ curl -X 'POST' \
 curl -X 'GET' \
   'https://vllm-server-vllm-granite.apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com/v1/models' \
   -H 'accept: application/json' \
-  -H 'Authorization: Bearer sha256~vX7AwzqninjzFtRUmfi5psuDVO382HLS4-c2pygyK4o'
+  -H 'Authorization: Bearer '
 
 #curl -L 'https://vllm-server-vllm-granite.apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com/v1/swagger.json' \
-#  -H 'Authorization: Bearer sha256~hW_R_Sqr-x4xvVbAMMYewNvt8Hy6NAnjXqUdczPDY1E'
+#  -H 'Authorization: Bearer '
 
 
 #Step-7 3scale install
