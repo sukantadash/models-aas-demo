@@ -82,5 +82,5 @@ spec:
         path: granite-3.3-2b-instruct
     tolerations:
     - effect: NoSchedule
-        key: nvidia.com/gpu
-        operator: Exists
+      key: nvidia.com/gpu
+      operator: Exists

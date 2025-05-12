@@ -4,10 +4,23 @@ metadata:
   name: apimanager
   namespace: 3scale
 spec:
-  wildcardDomain: apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com # Change this to your wildcard domain
+  wildcardDomain: apps.cluster-wbmfx.wbmfx.sandbox1988.opentlc.com # Change this to your wildcard domain
   resourceRequirementsEnabled: false
   tenantName: maas
   system:
     fileStorage:
       persistentVolumeClaim:
         storageClassName: ocs-storagecluster-cephfs
+  apicast:
+    stagingSpec:
+      customPolicies:
+        - name: llm-metrics
+          version: "0.1"
+          secretRef:
+             name: llm-metrics
+    productionSpec:
+      customPolicies:
+        - name: llm-metrics
+          version: "0.1"
+          secretRef:
+             name: llm-metrics

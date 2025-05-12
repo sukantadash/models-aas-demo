@@ -52,14 +52,14 @@ oc apply -k ./components/model-server/components-serving
 
 # create  ai-models namespace to store all models
 
-oc create ns ai-models
+oc new-project ai-models
 
 oc apply -n ai-models -f setup-s3.yaml
 
 
 # create  vllm-granite namespace to deploy the model
 
-oc create ns vllm-granite
+oc new-project vllm-granite
 
 #update s3-ds.sh to have proper namespaces
 
@@ -71,8 +71,8 @@ oc apply -f s3-ds.yaml
 ## make sure aws cli installed
 aws configure
 
-# use api port
-aws s3 sync ./granite-3.3-2b-instruct s3://models/granite-3.3-2b-instruct --endpoint-url https://minio-s3-ai-models.apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com
+# use minio api port  from route not console
+aws s3 sync ./models/granite-3.3-2b-instruct s3://models/granite-3.3-2b-instruct --endpoint-url https://minio-s3-ai-models.apps.cluster-wbmfx.wbmfx.sandbox1988.opentlc.com
 
 
 
@@ -83,7 +83,7 @@ oc apply -f ./vllm-model-inference/granite-instruct-vllm-raw-2.19.yaml -n vllm-g
 #Step-7 Test the model inferencing
 
 curl -X 'POST' \
-    'https://vllm-server-vllm-granite.apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com/v1/completions' \
+    'https://vllm-server-vllm-granite.apps.cluster-wbmfx.wbmfx.sandbox1988.opentlc.com/v1/completions' \
     -H 'accept: application/json' \
     -H 'Content-Type: application/json' \
     -H 'Authorization: Bearer ' \
@@ -95,7 +95,7 @@ curl -X 'POST' \
 }'
 
 curl -X 'GET' \
-  'https://vllm-server-vllm-granite.apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com/v1/models' \
+  'https://vllm-server-vllm-granite.apps.cluster-wbmfx.wbmfx.sandbox1988.opentlc.com/v1/models' \
   -H 'accept: application/json' \
   -H 'Authorization: Bearer '
 
@@ -111,34 +111,40 @@ curl -X 'GET' \
 
 #One or more unformatted disks (SSD/NVMe recommended) attached to each worker node for ODF storage.
 
+oc get nodes
 
 oc get machinesets -n openshift-machine-api 
-oc edit machineset <machineset-name> -n openshift-machine-api #edit replicaset to 2 to add one more worker nodes
+oc edit machineset <machineset-name> -n openshift-machine-api #edit replicas to 3 to add one more worker nodes
 
-#install odf operator
+#Wait
+oc get nodes
+
+#----------- Manual Step Begin ------
+#install odf operator. Install manually from console. Below step is not working. Need to retest. 
+#Create storage manually from console. select the strorage class, and select all 3 nodes all other options default.
 
 oc apply -k ./components/odf/operator/overlays/stable
-oc apply -k ./components/odf/instance/overlays/stable
+# make sure below pods are running
+oc get pods -n openshift-storage 
+
+oc apply -f ./components/odf/cluster/instance.yaml
+
+# Wait for new sc it will take 15 to 20 mins
+
+oc get storageclass
+#----------- Manual Step End ------
 
 
 #install the operators 3scale 
 
 
-cat <<EOF | oc apply -f -
-apiVersion: apps.3scale.net/v1alpha1
-kind: APIManager
-metadata:
-  name: 3scale
-  namespace: 3scale  # Must match Operator's namespace if namespaced
-spec:
-  wildcardDomain: apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com  # Replace with your domain
-  tenantName: maas
-  system:
-    fileStorage:
-      persistentVolumeClaim:
-        storageClassName: ocs-storagecluster-cephfs  
-EOF
-# to retrive pwd for admin for api management admin url
+oc apply -k ./components/3scale/operator/overlays/fast
+# make sure below pods are running
+oc get pods -n 3scale
+# wildcardDomain: apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com # Change this to your wildcard domain in the file ./components/cluster/cluster/instance.yaml
+#Change storage class
+oc apply -f ./components/3scale/cluster/instance.yaml
+
 
 
 oc get secret system-seed -n 3scale \
@@ -156,4 +162,38 @@ oc get secret system-seed -n 3scale \
 #Developer Portal :- Users can signup
 
 8. Create Application by linking user, app plan, product -> Developer Portal
-#install the operators 3scale-apicast
+
+
+#install the operators sso 
+#RHSSO operator also installs Openshift Elastic Search operator
+oc apply -k ./components/redhat-sso/operator/overlays/stable
+
+
+# make sure below pods are running
+oc get pods -n rh-sso
+
+
+oc project rh-sso
+
+oc apply -f ./components/redhat-sso/cluster/02_keycloak.yaml -n rh-sso
+
+
+oc get secret credential-rh-sso -n rh-sso \
+--template={{.data.ADMIN_USERNAME}} | base64 -d; echo
+
+oc get secret credential-rh-sso -n rh-sso \
+--template={{.data.ADMIN_PASSWORD}} | base64 -d; echo
+
+
+
+oc apply -f ./components/redhat-sso/cluster/03_realm.yaml -n rh-sso
+
+#oc apply -f ./components/redhat-sso/cluster/04_user.yaml
+
+
+export OCP_USER="admin"
+export OCP_PASS="MjUzNDYw"
+export OCP_URL="https://api.cluster-wbmfx.wbmfx.sandbox1988.opentlc.com:6443"
+
+./components/redhat-sso/cluster/inject_rhsso_ca.sh
+

@@ -7,5 +7,5 @@ resources:
 patches:
   - target:
       kind: Subscription
-      name:  openshift-storage
+      name:  odf-subscription
     path: patch-channel.yaml
