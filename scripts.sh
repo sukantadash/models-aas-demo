@@ -139,11 +139,34 @@ oc get storageclass
 
 
 oc apply -k ./components/3scale/operator/overlays/fast
+
+oc project 3scale
+
 # make sure below pods are running
 oc get pods -n 3scale
 # wildcardDomain: apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com # Change this to your wildcard domain in the file ./components/cluster/cluster/instance.yaml
 #Change storage class
 oc apply -f ./components/3scale/cluster/instance.yaml
+
+cd ./3scale/config
+
+oc create secret generic llm-metrics \
+    -n 3scale \
+--from-file=./apicast-policy.json \
+--from-file=./custom_metrics.lua \
+--from-file=./init.lua \
+--from-file=./llm.lua \
+--from-file=./portal_client.lua \
+--from-file=./response.lua \
+&& oc label secret llm-metrics apimanager.apps.3scale.net/watched-by=apimanager
+
+cd ../../
+
+
+for resource in $(oc api-resources --verbs=list --namespaced -o name --sort-by name | grep -v "events"); do \
+  oc get $resource -n 3scale --ignore-not-found -o custom-columns=KIND:.kind,NAME:.metadata.name; \
+done > output2.txt
+
 
 
 
