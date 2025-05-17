@@ -144,9 +144,6 @@ oc project 3scale
 
 # make sure below pods are running
 oc get pods -n 3scale
-# wildcardDomain: apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com # Change this to your wildcard domain in the file ./components/cluster/cluster/instance.yaml
-#Change storage class
-oc apply -f ./components/3scale/cluster/instance.yaml
 
 cd ./3scale/config
 
@@ -162,6 +159,12 @@ oc create secret generic llm-metrics \
 
 cd ../../
 
+# wildcardDomain: apps.cluster-cbq4n.cbq4n.sandbox906.opentlc.com # Change this to your wildcard domain in the file ./components/cluster/cluster/instance.yaml
+#Change storage class
+oc apply -f ./components/3scale/cluster/instance.yaml
+
+
+oc apply -f deployment/3scale/llm-metrics-policy.yaml
 
 for resource in $(oc api-resources --verbs=list --namespaced -o name --sort-by name | grep -v "events"); do \
   oc get $resource -n 3scale --ignore-not-found -o custom-columns=KIND:.kind,NAME:.metadata.name; \
@@ -220,3 +223,19 @@ export OCP_URL="https://api.cluster-wbmfx.wbmfx.sandbox1988.opentlc.com:6443"
 
 ./components/redhat-sso/cluster/inject_rhsso_ca.sh
 
+registry.redhat.io/3scale-amp2/toolbox-rhel8:3scale2.11
+
+
+
+podman login registry.redhat.io
+podman pull registry.redhat.io/3scale-amp2/toolbox-rhel8:3scale2.11
+
+podman run registry.redhat.io/3scale-amp2/toolbox-rhel8:3scale2.11 3scale help
+alias 3scale="podman run registry.redhat.io/3scale-amp2/toolbox-rhel8:3scale2.11 3scale"
+
+3scale remote add 3scale-tenant -k https://ACCESS_TOKEN@TENANT_ADMIN_PORTAL_URL
+
+podman run --name=toolbox-original registry.redhat.io/3scale-amp2/toolbox-rhel8:3scale2.11 3scale remote add 3scale-tenant -k https://ACCESS_TOKEN@TENANT_ADMIN_PORTAL_URL
+
+podman commit toolbox-original toolbox
+alias 3scale="podman run toolbox 3scale -k"
