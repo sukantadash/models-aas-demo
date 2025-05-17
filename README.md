@@ -16,45 +16,66 @@ uuidgen | xargs -I{} kubectl create secret generic keycloak-db-secret \
   --from-literal=username=keycloak \
   --from-literal=password={}
 
-  apiVersion: apps/v1
+
+
+apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: postgresql-db
+  name: postgresal-db
 spec:
-  serviceName: postgres-db
   replicas: 1
   selector:
     matchLabels:
-      app: postgresql-db
+      app: postgresal-db
+  serviceName: postgres-db
   template:
     metadata:
       labels:
         app: postgresql-db
     spec:
+      volumes:
+        - name: cache-volume
+          emptyDir: {}
       containers:
-        - name: postgresql-db
-          image: postgres:latest
-          volumeMounts:
-            - mountPath: /data
-              name: cache-volume
+        - name: postgresal-db
+          image: docker-cto-dev-local.artifactrepository.citigroup.net/cti-cti-ake-gcs-ilab-173264/rhoai/rhscl/postgresql-10-rhe17:1-173
           env:
-            - name: POSTGRES_USER
+            - name: POSTGRESQL_USER
               valueFrom:
                 secretKeyRef:
                   name: keycloak-db-secret
                   key: username
-            - name: POSTGRES_PASSWORD
+            - name: POSTGRESQL_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: keycloak-db-secret
                   key: password
-            - name: POSTGRES_DB
+            - name: POSTGRESQL_DATABASE
               value: keycloak
             - name: PGDATA
               value: /data/pgdata
-      volumes:
-        - name: cache-volume
-          emptyDir: {}
+          resources: {}
+          volumeMounts:
+            - name: cache-volume
+              mountPath: /data
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: Always
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  podManagementPolicy: OrderedReady
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      partition: 0
+  revisionHistoryLimit: 10
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+
 
 
 
