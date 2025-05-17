@@ -34,9 +34,8 @@ apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   name: postgresql-db
-  namespace: keycloak
 spec:
-  serviceName: postgres-db
+  serviceName: rh-sso-postgresql
   replicas: 1
   selector:
     matchLabels:
@@ -91,7 +90,7 @@ spec:
 
 
 
-apiVersion: k8s.keycloak.org/v2alpha1
+apiVersion: keycloak.org/v1alpha1
 kind: Keycloak
 metadata:
   name: rh-sso
