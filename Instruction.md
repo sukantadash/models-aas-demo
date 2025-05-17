@@ -47,7 +47,7 @@ spec:
     spec:
       containers:
         - name: postgresql-db
-          image: docker-cto-dev-local.artifactrepository.citigroup.net/cti-cti-ake-gcs-ilab-173264/rhoai/rhscl/postgresql-10-rhe17:1-173
+          image: <update the image>
           env:
             - name: POSTGRESQL_USER
               valueFrom:
