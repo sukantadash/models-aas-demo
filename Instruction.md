@@ -1,5 +1,5 @@
-Please follow the sript.sh for installing Model aas components and configurations
 
+https://docs.redhat.com/en/documentation/red_hat_single_sign-on/7.4/html/server_installation_and_configuration_guide/operator#external_database
 
 
 apiVersion: v1
