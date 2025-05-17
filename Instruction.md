@@ -6,84 +6,80 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: keycloak-db-secret
+  namespace: rh-sso
 type: Opaque
 stringData:
-  username: keycloak
-  password: <generated-password>  # Replace this with your generated password
+  POSTGRES_DATABASE: keycloak
+  POSTGRES_EXTERNAL_ADDRESS: rh-sso-postgresql.rh-sso.svc.cluster.local
+  POSTGRES_EXTERNAL_PORT: "5432"
+  POSTGRES_HOST: rh-sso-postgresql.rh-sso.svc.cluster.local
+  POSTGRES_PASSWORD: <generated-password>  # Replace this with your generated password
+  POSTGRES_SUPERUSER: "true"
+  POSTGRES_USERNAME: keycloak
 
 
-uuidgen | xargs -I{} kubectl create secret generic keycloak-db-secret \
-  --from-literal=username=keycloak \
-  --from-literal=password={}
+uuidgen | xargs -I{} oc create secret generic keycloak-db-secret \
+  --from-literal=POSTGRES_USERNAME=keycloak \
+  --from-literal=POSTGRES_PASSWORD={} \
+  --from-literal=POSTGRES_DATABASE=keycloak \
+  --from-literal=POSTGRES_EXTERNAL_ADDRESS=rh-sso-postgresql.rh-sso.svc.cluster.local \
+  --from-literal=POSTGRES_EXTERNAL_PORT=5432 \
+  --from-literal=POSTGRES_HOST=rh-sso-postgresql.rh-sso.svc.cluster.local \
+  --from-literal=POSTGRES_SUPERUSER=true \
+  -n rh-sso
 
 
 
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: postgresal-db
+  name: postgresql-db
+  namespace: keycloak
 spec:
+  serviceName: postgres-db
   replicas: 1
   selector:
     matchLabels:
-      app: postgresal-db
-  serviceName: postgres-db
+      app: postgresql-db
   template:
     metadata:
       labels:
         app: postgresql-db
     spec:
-      volumes:
-        - name: cache-volume
-          emptyDir: {}
       containers:
-        - name: postgresal-db
+        - name: postgresql-db
           image: docker-cto-dev-local.artifactrepository.citigroup.net/cti-cti-ake-gcs-ilab-173264/rhoai/rhscl/postgresql-10-rhe17:1-173
           env:
             - name: POSTGRESQL_USER
               valueFrom:
                 secretKeyRef:
                   name: keycloak-db-secret
-                  key: username
+                  key: POSTGRES_USERNAME
             - name: POSTGRESQL_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: keycloak-db-secret
-                  key: password
+                  key: POSTGRES_PASSWORD
             - name: POSTGRESQL_DATABASE
-              value: keycloak
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db-secret            
+                  key: POSTGRES_DATABASE
             - name: PGDATA
               value: /data/pgdata
-          resources: {}
           volumeMounts:
             - name: cache-volume
               mountPath: /data
-          terminationMessagePath: /dev/termination-log
-          terminationMessagePolicy: File
-          imagePullPolicy: Always
-      restartPolicy: Always
-      terminationGracePeriodSeconds: 30
-      dnsPolicy: ClusterFirst
-      securityContext: {}
-      schedulerName: default-scheduler
-  podManagementPolicy: OrderedReady
-  updateStrategy:
-    type: RollingUpdate
-    rollingUpdate:
-      partition: 0
-  revisionHistoryLimit: 10
-  persistentVolumeClaimRetentionPolicy:
-    whenDeleted: Retain
-    whenScaled: Retain
-
-
+      volumes:
+        - name: cache-volume
+          emptyDir: {}
 
 
 
 apiVersion: v1
 kind: Service
 metadata:
-  name: postgres-db
+  name: rh-sso-postgresql
 spec:
   selector:
     app: postgresql-db
@@ -105,16 +101,5 @@ spec:
   externalAccess:
     enabled: true
   instances: 1
-  db:
-    vendor: postgres
-    host: postgres-db
-    usernameSecret:
-      name: keycloak-db-secret
-      key: username
-    passwordSecret:
-      name: keycloak-db-secret
-      key: password
-  http:
-    tlsSecret: example-tls-secret
-  hostname:
-    hostname: test.keycloak.org
+  externalDatabase:
+    enabled: true
