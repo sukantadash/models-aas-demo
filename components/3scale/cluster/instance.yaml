@@ -4,7 +4,7 @@ metadata:
   name: apimanager
   namespace: 3scale
 spec:
-  wildcardDomain: apps.cluster-ndfxm.ndfxm.sandbox1168.opentlc.com # Change this to your wildcard domain
+  wildcardDomain: apps.cluster-7tqcw.7tqcw.sandbox3194.opentlc.com # Change this to your wildcard domain
   resourceRequirementsEnabled: false
   tenantName: maas
   system:
