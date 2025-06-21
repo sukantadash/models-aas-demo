@@ -75,6 +75,7 @@ This section guides you through installing MinIO for model storage and deploying
 3.  **Create Model Serving Runtime (Inference Service):**
     ```bash
     oc apply -f ./vllm-model-inference/granite-33-2b-instruct.yaml -n vllm-granite
+    oc apply -f ./vllm-model-inference/granite-33-8b-instruct.yaml -n vllm-granite
     ```
 4.  **Test the Model Inferencing:**
     Test this command in a pod in the project vllm-granite. As these are service url, they are not accessible ourside the project.
@@ -180,6 +181,7 @@ This section covers the installation of the 3scale API Management operator and i
             * Optionally, add **LLM Monitor for OpenAI-Compatible token usage** (refer to its Readme for configuration).
             * Ensure **3scale APIcast** policy is present/enabled.
         * Add **Methods and Mapping Rules** for each API method/path (e.g., POST `/v1/chat/completions`).
+    * **Deploy another model in the same way with a new model granite-33-8b-instruct**
     * **Promote Configuration:** From **Integration -> Configuration**, promote the configuration to **staging** then **production**.
     * **Application Plans Configuration:**
         * For each Product, go to **Applications -> Application Plans**.
