@@ -54,11 +54,12 @@ aws configure
 
 # use minio api port  from route not console models in s3 bucket shouldnt have any 
 # other special character than '-'
-aws s3 sync ./models/granite-3.3-2b-instruct s3://models/granite-33-2b-instruct --endpoint-url https://minio-s3-ai-models.apps.cluster-7tqcw.7tqcw.sandbox3194.opentlc.com
+aws s3 sync ./models/granite-3.3-2b-instruct s3://models/granite-33-2b-instruct --endpoint-url https://minio-s3-ai-models.apps.cluster-2j5v9.2j5v9.sandbox3159.opentlc.com
 
 
 # Step-6 Create model serving runtime (infernce service)
 oc apply -f ./vllm-model-inference/granite-33-2b-instruct.yaml -n vllm-granite
+oc apply -f ./vllm-model-inference/granite-33-8b-instruct.yaml -n vllm-granite
 
 #Step-6 Test the model inferencing
 curl -X 'POST' \
