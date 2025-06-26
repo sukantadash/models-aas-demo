@@ -583,14 +583,14 @@ def main():
         if services_with_keys:
             user_output_logger.info("\nServices for which your account HAS an API key:")
             for i, service in enumerate(services_with_keys):
-                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name: {service['name']}, Proxy URL: {service['proxy_endpoint']}, Auth Method: {service['authentication_method']}, API Key: {service['api_key']}")
+                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Model Name: {service['name']}, Proxy URL: {service['proxy_endpoint']}, Auth Method: {service['authentication_method']}, API Key: {service['api_key']}")
         else:
             user_output_logger.info("\nYou do not have API keys for any services.")
 
         if services_without_keys:
             user_output_logger.info("\nServices for which your account does NOT have an API key:")
             for i, service in enumerate(services_without_keys):
-                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name: {service['name']}, Proxy URL: {service['proxy_endpoint']}, Auth Method: {service['authentication_method']}")
+                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Model Name: {service['name']}, Proxy URL: {service['proxy_endpoint']}, Auth Method: {service['authentication_method']}")
         else:
             user_output_logger.info("\nYou have API keys for all available services.")
 
