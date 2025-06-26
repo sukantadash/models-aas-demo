@@ -11,6 +11,7 @@ import logging
 import configparser
 from functools import lru_cache
 import sys # Import sys for stdout handler
+from typing import Union, Optional # Import Optional for Python 3.9 compatibility
 
 # --- Constants and Configuration Setup ---
 # Store the config file in the user's home directory for persistence
@@ -59,7 +60,7 @@ def save_config(config):
         logger.error(f"Error saving configuration to file: {e}")
 
 # --- Environment Variable Handling ---
-def get_env_variable(var_name: str, optional: bool = False, default: str = None) -> str:
+def get_env_variable(var_name: str, optional: bool = False, default: str = None) -> Optional[str]:
     """
     Retrieves an environment variable.
     Exits if the variable is not set and is not optional.
@@ -83,7 +84,7 @@ def get_env_variable(var_name: str, optional: bool = False, default: str = None)
 api_session = requests.Session()
 
 def make_api_call(method: str, endpoint: str, params: dict = None, data: dict = None, headers: dict = None, 
-                  is_threescale_admin_api: bool = True, is_json_response: bool = False) -> [ET.Element, dict, None]:
+                  is_threescale_admin_api: bool = True, is_json_response: bool = False) -> Optional[Union[ET.Element, dict]]:
     """
     Makes an API call using the shared session.
     Handles common response parsing and error checking.
@@ -160,7 +161,7 @@ def get_current_system_username() -> str:
 
 # --- Keycloak Specific Helpers ---
 def sso_login_and_get_credentials(keycloak_url: str, keycloak_realm: str, keycloak_client_id: str, 
-                                  keycloak_client_secret: str) -> tuple[str, str, str, str]:
+                                  keycloak_client_secret: str) -> tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     """
     Performs SSO login, manages the access token by attempting to reuse from config.
     Retrieves email and SOEID from Keycloak access token.
@@ -255,11 +256,11 @@ def sso_login_and_get_credentials(keycloak_url: str, keycloak_realm: str, keyclo
             config.set(token_section_name, key, str(value))
         save_config(config)
 
-        logger.info("\n--- Keycloak Login Successful! ---")
+        user_output_logger.info("\n--- Keycloak Login Successful! ---")
         logger.debug(f"Access Token (Bearer): {access_token[:30]}... (truncated)")
         logger.debug(f"Expires In (seconds): {token_data.get('expires_in')}")
         if email_id:
-            logger.info(f"Associated Email ID: {email_id}")
+            user_output_logger.info(f"Associated Email ID: {email_id}")
     else:
         logger.error("Failed to obtain access token from Keycloak.")
         return None, soeid, password, None
@@ -267,12 +268,12 @@ def sso_login_and_get_credentials(keycloak_url: str, keycloak_realm: str, keyclo
     return access_token, soeid, password, email_id
 
 # --- 3Scale Specific Helpers ---
-def find_account_by_soeid(soeid: str, threescale_admin_api_key: str) -> str | None:
+def find_account_by_soeid(soeid: str, threescale_admin_api_key: str) -> Optional[str]:
     """
     Checks if an SOEID exists in 3Scale by finding the account.
     Returns account ID if found, otherwise None.
     """
-    logger.info(f"\nChecking if SOEID '{soeid}' exists in 3Scale...")
+    user_output_logger.info(f"\nChecking if SOEID '{soeid}' exists in 3Scale...")
     endpoint = "accounts/find.xml"
     params = {
         "access_token": threescale_admin_api_key,
@@ -285,19 +286,19 @@ def find_account_by_soeid(soeid: str, threescale_admin_api_key: str) -> str | No
         account_id_element = root.find("id")
         if account_id_element is not None and account_id_element.text:
             account_id = account_id_element.text
-            logger.info(f"Account found! Account ID: {account_id}")
+            user_output_logger.info(f"Account found! Account ID: {account_id}")
             return account_id
         else:
-            logger.info("Account not found for the given SOEID.")
+            user_output_logger.info("Account not found for the given SOEID.")
             return None
     return None
 
-def create_threescale_account_via_signup(soeid: str, emailid: str, password: str, threescale_admin_api_key: str) -> str | None:
+def create_threescale_account_via_signup(soeid: str, emailid: str, password: str, threescale_admin_api_key: str) -> Optional[str]:
     """
     Creates a new 3Scale developer account using the signup API.
     Returns the new account's ID if successful.
     """
-    logger.info(f"\nAttempting to create new 3scale account for SOEID '{soeid}'...")
+    user_output_logger.info(f"\nAttempting to create new 3scale account for SOEID '{soeid}'...")
     signup_endpoint = "signup.xml"
 
     payload = {
@@ -322,7 +323,7 @@ def create_threescale_account_via_signup(soeid: str, emailid: str, password: str
         account_id_element = account_element.find("id") 
         if account_id_element is not None and account_id_element.text:
             new_account_id = account_id_element.text
-            logger.info(f"Successfully created 3scale account! New Account ID: {new_account_id}")
+            user_output_logger.info(f"Successfully created 3scale account! New Account ID: {new_account_id}")
             return new_account_id
         else:
             logger.error("Could not find account ID in signup response.")
@@ -339,7 +340,7 @@ def list_services(threescale_admin_api_key: str) -> list[dict]:
     Lists all available services (models) from 3Scale.
     Returns a list of dictionaries with service ID and name.
     """
-    logger.info("\nListing all available services (models)...")
+    user_output_logger.info("\nListing all available services (models)...")
     endpoint = "services.xml"
     params = {
         "access_token": threescale_admin_api_key,
@@ -363,7 +364,7 @@ def list_services(threescale_admin_api_key: str) -> list[dict]:
                     "name": service_name.text,
                     "url": backend_api_url.text if backend_api_url is not None else "N/A" # Add URL here
                 })
-        logger.info(f"Found {len(services)} services.")
+        user_output_logger.info(f"Found {len(services)} services.")
         return services
     return []
 
@@ -373,7 +374,7 @@ def get_account_applications(account_id: str, threescale_admin_api_key: str) -> 
     Gets all registered applications for a given account.
     Returns a list of dictionaries with application details.
     """
-    logger.info(f"\nGetting applications for Account ID: {account_id}...")
+    user_output_logger.info(f"\nGetting applications for Account ID: {account_id}...")
     endpoint = f"accounts/{account_id}/applications.xml"
     params = {
         "access_token": threescale_admin_api_key
@@ -398,7 +399,7 @@ def get_account_applications(account_id: str, threescale_admin_api_key: str) -> 
             else:
                 logger.debug(f"Skipping incomplete application element. Missing critical data. Parsed: {app_data}, Raw: {ET.tostring(app_element, encoding='unicode')}")
 
-        logger.info(f"Found {len(applications)} applications for account {account_id}.")
+        user_output_logger.info(f"Found {len(applications)} applications for account {account_id}.")
         return applications
     return []
 
@@ -408,7 +409,7 @@ def get_application_plans(service_id: str, threescale_admin_api_key: str) -> lis
     Gets application plans for a specific service.
     Returns a list of dictionaries with plan ID and name.
     """
-    logger.info(f"\nGetting application plans for Service ID: {service_id}...")
+    user_output_logger.info(f"\nGetting application plans for Service ID: {service_id}...")
     endpoint = f"services/{service_id}/application_plans.xml"
     params = {
         "access_token": threescale_admin_api_key
@@ -426,16 +427,16 @@ def get_application_plans(service_id: str, threescale_admin_api_key: str) -> lis
                     "id": plan_id.text,
                     "name": plan_name.text
                 })
-        logger.info(f"Found {len(plans)} application plans for service {service_id}.")
+        user_output_logger.info(f"Found {len(plans)} application plans for service {service_id}.")
         return plans
     return []
 
-def register_application(account_id: str, plan_id: str, app_name: str, threescale_admin_api_key: str) -> dict | None:
+def register_application(account_id: str, plan_id: str, app_name: str, threescale_admin_api_key: str) -> Optional[dict]:
     """
     Registers a new application for an account, effectively creating an API key.
     Returns the application ID and API key if successful.
     """
-    logger.info(f"\nRegistering new application '{app_name}' for Account ID: {account_id} with Plan ID: {plan_id}...")
+    user_output_logger.info(f"\nRegistering new application '{app_name}' for Account ID: {account_id} with Plan ID: {plan_id}...")
     endpoint = f"accounts/{account_id}/applications.xml"
     
     data_payload = {
@@ -474,7 +475,7 @@ def main():
     
     args = parser.parse_args()
 
-    logger.info("--- 3Scale API Automation Script ---")
+    user_output_logger.info("--- 3Scale API Automation Script ---")
 
     keycloak_url = get_env_variable("KEYCLOAK_URL")
     keycloak_realm = get_env_variable("KEYCLOAK_REALM")
@@ -498,18 +499,18 @@ def main():
             logger.error("Email ID is crucial for 3scale account creation and was not provided. Exiting.")
             return
 
-    logger.info(f"Authenticated Keycloak Access Token obtained. SOEID (used as Keycloak Username): {soeid}")
-    logger.info(f"Using Email ID from Keycloak: {email_id}")
+    user_output_logger.info(f"Authenticated Keycloak Access Token obtained. SOEID (used as Keycloak Username): {soeid}")
+    user_output_logger.info(f"Using Email ID from Keycloak: {email_id}")
 
     account_id = find_account_by_soeid(soeid, threescale_admin_api_key)
 
     if not account_id:
-        logger.info(f"\nSOEID '{soeid}' does NOT exist in 3Scale.")
-        logger.info("Proceeding to create a new 3scale account using collected email ID...")
+        user_output_logger.info(f"\nSOEID '{soeid}' does NOT exist in 3Scale.")
+        user_output_logger.info("Proceeding to create a new 3scale account using collected email ID...")
         
         temp_password_for_signup = password 
         if temp_password_for_signup is None:
-            logger.info("\nTo create your 3scale account, a password is required.")
+            user_output_logger.info("\nTo create your 3scale account, a password is required.")
             temp_password_for_signup = getpass.getpass(f"Enter a password to set for your new 3scale account (for SOEID '{soeid}'): ")
             if not temp_password_for_signup:
                 logger.error("Password is required for 3scale account creation. Exiting.")
@@ -521,12 +522,12 @@ def main():
             logger.error("Failed to create 3scale account. Exiting.")
             return
         else:
-            logger.info(f"Successfully created 3scale account with ID: {account_id}.")
+            user_output_logger.info(f"Successfully created 3scale account with ID: {account_id}.")
     else:
-        logger.info(f"SOEID '{soeid}' exists in 3Scale with Account ID: {account_id}.")
+        user_output_logger.info(f"SOEID '{soeid}' exists in 3Scale with Account ID: {account_id}.")
 
     if args.list:
-        logger.info("\n--- Listing Services and API Key Status ---")
+        user_output_logger.info("\n--- Listing Services and API Key Status ---")
         all_services = list_services(threescale_admin_api_key)
         existing_applications = get_account_applications(account_id, threescale_admin_api_key)
 
@@ -556,10 +557,10 @@ def main():
         else:
             user_output_logger.info("\nYou have API keys for all available services.")
 
-        logger.info("\n--- Listing Services and API Key Status Completed ---")
+        user_output_logger.info("\n--- Listing Services and API Key Status Completed ---")
         return
     elif args.init:
-        logger.info(f"\n--- Initializing API Key for Service: {args.init} ---") # Changed to logger
+        user_output_logger.info(f"\n--- Initializing API Key for Service: {args.init} ---")
         identifier_type = None
         identifier_value = None
 
@@ -587,7 +588,7 @@ def main():
             logger.error(f"Error: Service with {identifier_type} '{identifier_value}' not found.")
             return
 
-        logger.info(f"\nFound target Service: ID={selected_service['id']}, Name={selected_service['name']}") # Changed to user_output_logger
+        user_output_logger.info(f"\nFound target Service: ID={selected_service['id']}, Name={selected_service['name']}")
 
         application_plans = get_application_plans(selected_service["id"], threescale_admin_api_key)
 
@@ -605,17 +606,17 @@ def main():
         for app in existing_applications:
             if app.get("service_id") == selected_service["id"] and \
                app.get("plan_id") == target_plan_for_creation["id"]:
-                logger.info(f"Found existing application for Service ID '{selected_service['id']}' and Plan ID '{target_plan_for_creation['id']}'.")
+                user_output_logger.info(f"Found existing application for Service ID '{selected_service['id']}' and Plan ID '{target_plan_for_creation['id']}'.")
                 api_key_to_use = app["user_key"]
                 found_existing_exact_match = True
                 break
 
         if found_existing_exact_match:
-            user_output_logger.info(f"Returning existing API Key: {api_key_to_use}") # Changed to user_output_logger
+            user_output_logger.info(f"Returning existing API Key: {api_key_to_use}")
         else:
-            logger.info("No existing application found for this service and target plan. Registering a new application...")
+            user_output_logger.info("No existing application found for this service and target plan. Registering a new application...")
             
-            logger.info(f"Targeting Application Plan for NEW creation: ID={target_plan_for_creation['id']}, Name={target_plan_for_creation['name']}")
+            user_output_logger.info(f"Targeting Application Plan for NEW creation: ID={target_plan_for_creation['id']}, Name={target_plan_for_creation['name']}")
 
             app_name = f"helix-app-{soeid}-{selected_service['id']}-{target_plan_for_creation['id']}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}" 
             
@@ -628,25 +629,25 @@ def main():
 
             if new_app_details:
                 api_key_to_use = new_app_details['api_key']
-                logger.info("\n--- API Key generated successfully (new): {api_key_to_use} ---") # Changed to logger
+                user_output_logger.info(f"\n--- API Key generated successfully (new): {api_key_to_use} ---")
             else:
                 logger.error("\n--- ERROR: Failed to register application and create API Key. ---")
                 return
 
-        logger.info(f"--- Initialization for Service '{selected_service['name']}' Completed ---") # Changed to logger
+        user_output_logger.info(f"--- Initialization for Service '{selected_service['name']}' Completed ---")
         return
 
     else:
-        user_output_logger.info("\n--- No specific command-line arguments provided. Proceeding with interactive flow. ---") # Changed to user_output_logger
+        user_output_logger.info("\n--- No specific command-line arguments provided. Proceeding with interactive flow. ---")
         services = list_services(threescale_admin_api_key)
 
         if not services:
             logger.error("\nNo services (models) found in your 3Scale account. Cannot proceed with API key creation.")
             return
 
-        user_output_logger.info("\nAvailable Services:") # Changed to user_output_logger
+        user_output_logger.info("\nAvailable Services:")
         for i, service in enumerate(services):
-            user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name={service['name']}") # Changed to user_output_logger
+            user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name={service['name']}")
 
         selected_service = None
         while selected_service is None:
@@ -654,7 +655,7 @@ def main():
                 choice = int(input("Enter the number of the service you want to select: "))
                 if 1 <= choice <= len(services):
                     selected_service = services[choice - 1]
-                    user_output_logger.info(f"\nYou selected Service: ID={selected_service['id']}, Name={selected_service['name']}") # Changed to user_output_logger
+                    user_output_logger.info(f"\nYou selected Service: ID={selected_service['id']}, Name={selected_service['name']}")
                 else:
                     logger.error("Invalid choice. Please enter a number within the range.")
             except ValueError:
@@ -675,17 +676,17 @@ def main():
         for app in existing_applications:
             if app.get("service_id") == selected_service["id"] and \
                app.get("plan_id") == target_plan_for_creation["id"]:
-                logger.info(f"Found existing application for Service ID '{selected_service['id']}' and Plan ID '{target_plan_for_creation['id']}'.")
+                user_output_logger.info(f"Found existing application for Service ID '{selected_service['id']}' and Plan ID '{target_plan_for_creation['id']}'.")
                 api_key_to_use = app["user_key"]
                 found_existing_exact_match = True
                 break
 
         if found_existing_exact_match:
-            user_output_logger.info(f"Returning existing API Key: {api_key_to_use}") # Changed to user_output_logger
+            user_output_logger.info(f"Returning existing API Key: {api_key_to_use}")
         else:
-            logger.info("No existing application found for this service and target plan. Registering a new application...")
+            user_output_logger.info("No existing application found for this service and target plan. Registering a new application...")
             
-            logger.info(f"Targeting Application Plan for NEW creation: ID={target_plan_for_creation['id']}, Name={target_plan_for_creation['name']}")
+            user_output_logger.info(f"Targeting Application Plan for NEW creation: ID={target_plan_for_creation['id']}, Name={target_plan_for_creation['name']}")
 
             app_name = f"helix-app-{soeid}-{selected_service['id']}-{target_plan_for_creation['id']}-{datetime.datetime.now().strftime('%Y%m%d%H%M%S')}" 
             
@@ -698,13 +699,13 @@ def main():
 
             if new_app_details:
                 api_key_to_use = new_app_details['api_key']
-                user_output_logger.info("\n--- API Key generated successfully (new): \"{api_key_to_use}\" ---") # Changed to user_output_logger
+                user_output_logger.info(f"\n--- API Key generated successfully (new): \"{api_key_to_use}\" ---")
             else:
                 logger.error("\n--- ERROR: Failed to register application and create API Key. ---")
                 return
 
 
-        logger.info("\n--- 3Scale API Automation Script Completed ---") # Changed to logger
+        user_output_logger.info("\n--- 3Scale API Automation Script Completed ---")
 
 if __name__ == "__main__":
     main()
