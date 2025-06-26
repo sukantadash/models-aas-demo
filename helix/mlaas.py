@@ -354,15 +354,15 @@ def list_services(threescale_admin_api_key: str) -> list[dict]:
         for service_element in root.findall("service"):
             service_id = service_element.find("id")
             service_name = service_element.find("name")
-            # Extract the backend_api_url
-            backend_api_url = service_element.find("backend_api_url") 
-
+            # The backend_api_url found here is for the backend, not the client-facing proxy.
+            # We will fetch the proxy endpoint separately if needed.
             if service_id is not None and service_id.text and \
                service_name is not None and service_name.text:
                 services.append({
                     "id": service_id.text,
                     "name": service_name.text,
-                    "url": backend_api_url.text if backend_api_url is not None else "N/A" # Add URL here
+                    # We will add the proxy_endpoint later if requested/displayed
+                    "backend_api_url": service_element.findtext("backend_api_url") # Keep for completeness, but not the 'endpoint' requested by user for client usage
                 })
         user_output_logger.info(f"Found {len(services)} services.")
         return services
@@ -431,6 +431,33 @@ def get_application_plans(service_id: str, threescale_admin_api_key: str) -> lis
         return plans
     return []
 
+@lru_cache(maxsize=32) # Increased cache size as this will be called for each service listed
+def get_proxy_endpoint_for_service(service_id: str, threescale_admin_api_key: str) -> Optional[str]:
+    """
+    Retrieves the proxy endpoint (client-facing URL) for a given service.
+    """
+    logger.debug(f"Fetching proxy endpoint for Service ID: {service_id}...")
+    endpoint = f"services/{service_id}/proxy.xml"
+    params = {
+        "access_token": threescale_admin_api_key
+    }
+
+    root = make_api_call("GET", endpoint, params=params)
+    if root is not None:
+        proxy_element = root.find("proxy")
+        if proxy_element is not None:
+            endpoint_element = proxy_element.find("endpoint")
+            if endpoint_element is not None and endpoint_element.text:
+                logger.debug(f"Found proxy endpoint for Service ID {service_id}: {endpoint_element.text}")
+                return endpoint_element.text
+            else:
+                logger.warning(f"Could not find <endpoint> in proxy response for Service ID {service_id}.")
+        else:
+            logger.warning(f"Could not find <proxy> element in response for Service ID {service_id}.")
+    else:
+        logger.warning(f"Failed to fetch proxy details for Service ID {service_id}.")
+    return None
+
 def register_application(account_id: str, plan_id: str, app_name: str, threescale_admin_api_key: str) -> Optional[dict]:
     """
     Registers a new application for an account, effectively creating an API key.
@@ -474,6 +501,11 @@ def main():
                              "Provide as 'name=<servicename>' or 'id=<serviceid>'.")
     
     args = parser.parse_args()
+
+    # If no arguments are provided, print the help message and exit
+    if len(sys.argv) == 1:
+        parser.print_help(sys.stderr)
+        sys.exit(1)
 
     user_output_logger.info("--- 3Scale API Automation Script ---")
 
@@ -537,6 +569,9 @@ def main():
         services_without_keys = []
 
         for service in all_services:
+            proxy_endpoint = get_proxy_endpoint_for_service(service['id'], threescale_admin_api_key)
+            service['proxy_endpoint'] = proxy_endpoint if proxy_endpoint else "N/A" # Add proxy endpoint
+
             if service['id'] in existing_service_info:
                 service['api_key'] = existing_service_info[service['id']]
                 services_with_keys.append(service)
@@ -546,14 +581,14 @@ def main():
         if services_with_keys:
             user_output_logger.info("\nServices for which your account HAS an API key:")
             for i, service in enumerate(services_with_keys):
-                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name: {service['name']}, URL: {service['url']}, API Key: {service['api_key']}")
+                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name: {service['name']}, Proxy URL: {service['proxy_endpoint']}, API Key: {service['api_key']}")
         else:
             user_output_logger.info("\nYou do not have API keys for any services.")
 
         if services_without_keys:
             user_output_logger.info("\nServices for which your account does NOT have an API key:")
             for i, service in enumerate(services_without_keys):
-                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name: {service['name']}, URL: {service['url']}")
+                user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name: {service['name']}, Proxy URL: {service['proxy_endpoint']}")
         else:
             user_output_logger.info("\nYou have API keys for all available services.")
 
@@ -629,10 +664,17 @@ def main():
 
             if new_app_details:
                 api_key_to_use = new_app_details['api_key']
-                user_output_logger.info(f"\n--- API Key generated successfully (new): {api_key_to_use} ---")
+                user_output_logger.info(f"\n--- API Key generated successfully (new): \"{api_key_to_use}\" ---")
             else:
                 logger.error("\n--- ERROR: Failed to register application and create API Key. ---")
                 return
+        
+        # After getting or generating the API key, fetch and display the proxy endpoint
+        proxy_endpoint = get_proxy_endpoint_for_service(selected_service['id'], threescale_admin_api_key)
+        if proxy_endpoint:
+            user_output_logger.info(f"Service Proxy Endpoint (for API calls): {proxy_endpoint}")
+        else:
+            user_output_logger.warning(f"Could not retrieve proxy endpoint for service ID {selected_service['id']}.")
 
         user_output_logger.info(f"--- Initialization for Service '{selected_service['name']}' Completed ---")
         return
@@ -646,8 +688,11 @@ def main():
             return
 
         user_output_logger.info("\nAvailable Services:")
+        # Fetch and display proxy endpoints for interactive mode
         for i, service in enumerate(services):
-            user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name={service['name']}")
+            proxy_endpoint = get_proxy_endpoint_for_service(service['id'], threescale_admin_api_key)
+            service_url_display = proxy_endpoint if proxy_endpoint else "N/A"
+            user_output_logger.info(f"  {i+1}. ID: {service['id']}, Name={service['name']}, Proxy URL: {service_url_display}")
 
         selected_service = None
         while selected_service is None:
@@ -703,6 +748,13 @@ def main():
             else:
                 logger.error("\n--- ERROR: Failed to register application and create API Key. ---")
                 return
+        
+        # After getting or generating the API key, fetch and display the proxy endpoint
+        proxy_endpoint = get_proxy_endpoint_for_service(selected_service['id'], threescale_admin_api_key)
+        if proxy_endpoint:
+            user_output_logger.info(f"Service Proxy Endpoint (for API calls): {proxy_endpoint}")
+        else:
+            user_output_logger.warning(f"Could not retrieve proxy endpoint for service ID {selected_service['id']}.")
 
 
         user_output_logger.info("\n--- 3Scale API Automation Script Completed ---")
