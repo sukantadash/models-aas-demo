@@ -11,4 +11,4 @@ export KEYCLOAK_CLIENT_SECRET=""
 export THREESCALE_ADMIN_API_URL="https://maas-admin.apps.cluster-qlzvh.qlzvh.sandbox205.opentlc.com/admin/api/"
 export THREESCALE_ADMIN_API_KEY=""
 
-python threescale_automation.py
+python mlaas.py
