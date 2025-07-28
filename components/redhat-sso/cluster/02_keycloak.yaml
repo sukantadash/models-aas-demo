@@ -6,18 +6,30 @@ metadata:
   namespace: your-project
 spec:
   instances: 1
-  database:
-    # Specify the database vendor
-    vendor: postgres
-    
-    # Use the decoded values from your secret for host and database name
-    host: redlane-postgresql.ns1.svc.cluster.local
-    database: keycloak
-    
-    # Reference the secret and the specific keys for credentials
-    usernameSecret:
-      name: keycloak-db-secret
-      key: POSTGRES_USERNAME
-    passwordSecret:
-      name: keycloak-db-secret
-      key: POSTGRES_PASSWORD
+  # This 'keycloak' block with environment variables is the correct method
+  # for the operator version you are using.
+  keycloak:
+    env:
+      - name: DB_VENDOR
+        value: "postgres"
+      # This is the DB host from your YAML file.
+      # Ensure this is the correct service name for your PostgreSQL.
+      - name: DB_ADDR
+        value: "rh-bk-postgresql.rh-bk.svc.cluster.local"
+      - name: DB_DATABASE
+        value: "keycloak"
+      - name: DB_USER
+        # This references the username from your secret
+        valueFrom:
+          secretKeyRef:
+            name: keycloak-db-secret
+            key: POSTGRES_USERNAME
+      - name: DB_PASSWORD
+        # This references the password from your secret
+        valueFrom:
+          secretKeyRef:
+            name: keycloak-db-secret
+            key: POSTGRES_PASSWORD
+      # It's good practice to enable this when running behind an OpenShift Route
+      - name: PROXY_ADDRESS_FORWARDING
+        value: "true"
