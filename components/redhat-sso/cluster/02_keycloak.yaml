@@ -1,10 +1,23 @@
-apiVersion: keycloak.org/v1alpha1
+apiVersion: k8s.keycloak.org/v2alpha1
 kind: Keycloak
 metadata:
-  name: rh-sso
-  labels:
-    app: rh-sso
+  # Make sure the name and namespace match your instance
+  name: example-keycloak
+  namespace: your-project
 spec:
-  externalAccess:
-    enabled: true
   instances: 1
+  database:
+    # Specify the database vendor
+    vendor: postgres
+    
+    # Use the decoded values from your secret for host and database name
+    host: redlane-postgresql.ns1.svc.cluster.local
+    database: keycloak
+    
+    # Reference the secret and the specific keys for credentials
+    usernameSecret:
+      name: keycloak-db-secret
+      key: POSTGRES_USERNAME
+    passwordSecret:
+      name: keycloak-db-secret
+      key: POSTGRES_PASSWORD
